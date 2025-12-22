@@ -23,10 +23,10 @@ MAP_CONFIG = {
     "floor_spike_groups": 12, # [调整] 地面刺组数 (出现在通道两侧)
     "floor_spike_len": (1, 3),
     
-    "wall_spike_count": 15,   # [新增] 墙面刺的数量 (嵌入墙体)
+    "wall_spike_count": 10,   # [新增] 墙面刺的数量 (嵌入墙体)
     
-    "cocoon_groups": 8,     # 茧的组数
-    "cocoon_len": (2, 4)    # 茧每组长度
+    "cocoon_groups": 4,     # 茧的组数
+    "cocoon_len": (2, 3)    # 茧每组长度
 }
 
 class MapGenerator:

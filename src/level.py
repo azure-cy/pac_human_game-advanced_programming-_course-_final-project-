@@ -75,10 +75,12 @@ class Level:
     # --- 生成具体的实体 (Spawner Functions) ---
 
     def _spawn_wall(self, pos):
-        Wall(
-            groups=[self.visible_sprites, self.obstacle_sprites], 
+        wall = Wall(
+            groups=[self.obstacle_sprites], 
             pos=pos, 
         )
+
+        self.visible_sprites.add_static(wall) #!放在静态图中，不反复绘制，增加流畅性
     
     def _spawn_door(self, pos):
         # 门是静态的，加入 visible 和 goal 组
