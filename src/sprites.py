@@ -43,13 +43,15 @@ class Coin(pygame.sprite.Sprite):
         self.image = self.frames[int(self.idx)]
 
 class Cocoon(pygame.sprite.Sprite):
-    def __init__(self, groups, pos, player, spawn_ghost_callback):
+    def __init__(self, groups, pos, player, visible_group, damage_group, obstacle_sprites):
         super().__init__(groups)
         self.pos = pos
         self.player = player
-        self.spawn_cb = spawn_ghost_callback
+
+        self.visible_group = visible_group
+        self.damage_group = damage_group
+        self.obstacle_sprites = obstacle_sprites
         
-        # 茧：红色，实线
         self.image = AssetFactory.create_tile("茧", COLOR_GHOST, border_style='solid')
         self.rect = self.image.get_rect(topleft=pos)
         
@@ -60,14 +62,19 @@ class Cocoon(pygame.sprite.Sprite):
     def update(self):
         if self.is_triggered:
             if pygame.time.get_ticks() - self.trigger_time >= COCOON_SPAWN_DELAY:
-                self.spawn_cb(self.rect.topleft)
+                Ghost(
+                    groups=[self.visible_group, self.damage_group], 
+                    pos=self.rect.topleft, 
+                    obstacle_sprites=self.obstacle_sprites, 
+                    player=self.player
+                )
                 self.kill()
         elif self.detection_rect.colliderect(self.player.rect):
             self.is_triggered = True
             self.trigger_time = pygame.time.get_ticks()
 
 class Trap(pygame.sprite.Sprite):
-    def __init__(self, groups, pos, direction_char, damage_group, player):
+    def __init__(self, groups, pos, damage_group, player):
         super().__init__(groups)
         self.pos = pygame.math.Vector2(pos)
         self.damage_group = damage_group
@@ -76,6 +83,7 @@ class Trap(pygame.sprite.Sprite):
         
         # 逻辑属性
         self.angle = 0
+        self.direction = pygame.math.Vector2(0, -1)
         self.direction = pygame.math.Vector2(0, -1)
         self.status = 'idle'
         self.cooldown_timer = 0
