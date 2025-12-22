@@ -3,6 +3,7 @@ import pygame
 from settings import *
 from maps import LEVELS
 from sprites import Wall, Door, Coin, Cocoon, Trap, Ghost, Player
+from sprites import AssetFactory
 from particles import TrailSprite, BubbleSprite
 from camera import CameraGroup
 
@@ -17,10 +18,7 @@ class Level:
         # 3. 初始化精灵组
         self._init_sprite_groups()
         
-        # 4. 加载资源
-        self._load_resources()
-        
-        # 5. 构建地图
+        # 4. 构建地图
         self._build_level()
 
     def _init_sprite_groups(self):
@@ -39,171 +37,6 @@ class Level:
         
         # 目标组 (碰到就赢: 门)
         self.goal_sprites = pygame.sprite.Group()
-
-    def _load_resources(self):
-        """统一管理所有外部图片和程序化生成的素材"""
-        # A. 加载外部图片
-        self.wall_surf = pygame.image.load(WALL_IMG_PATH).convert_alpha()
-        self.player_surf = pygame.image.load(PLAYER_IMG_PATH).convert_alpha()
-        # self.ghost_surf = pygame.image.load(GHOST_IMG_PATH).convert_alpha()
-        self.door_surf = pygame.image.load(DOOR_IMG_PATH).convert_alpha()
-
-        # B. 程序化生成“鬼”字 Surface
-        self.ghost_surf = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
-        
-        font_size = int(TILE_SIZE * 0.9)
-        try:
-            # 尝试加载系统黑体
-            font = pygame.font.SysFont(['simhei', 'microsoftyahei', 'pingfangsc'], font_size)
-        except:
-            # 如果失败，回退到默认字体(虽然可能不显示中文，但防报错)
-            font = pygame.font.Font(None, font_size)
-
-        text_surf = font.render("鬼", True, (255, 0, 0))
-        text_rect = text_surf.get_rect(center=(TILE_SIZE // 2, TILE_SIZE // 2))
-        self.ghost_surf.blit(text_surf, text_rect)
-        
-        # C. 生成程序化素材
-        self.trail_assets = self._generate_trail_assets()
-        self.coin_frames = self._generate_coin_assets()
-
-    def _generate_trail_assets(self):
-        """
-        生成不同长度、不同位置的线条图案。
-        返回: 包含四个方向的素材字典
-        """
-        line_h = 3
-        center_y = TILE_SIZE // 2
-        
-        # 定义线条长度
-        main_len = 20
-        up_len = 14
-        down_len = 16
-        
-        # --- 1. 绘制基础图 (以向右 vector(1,0) 为基准) ---
-        
-        # 主线 (Main)
-        surf_main = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
-        pygame.draw.rect(surf_main, COLOR_LINES, (0, center_y - 2, main_len, line_h))
-        
-        # 上线 (Up)
-        surf_up = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
-        pygame.draw.rect(surf_up, COLOR_LINES, (0, center_y - 11, up_len, line_h))
-
-        # 下线 (Down)
-        surf_down = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
-        pygame.draw.rect(surf_down, COLOR_LINES, (0, center_y + 7, down_len, line_h))
-
-        # --- 2. 生成旋转字典 ---
-        # 辅助函数：根据基础图生成四个方向的列表
-        def create_rotations(surf):
-            return {
-                (1, 0):  surf,
-                (-1, 0): pygame.transform.flip(surf, True, False),
-                (0, -1): pygame.transform.rotate(surf, 90),
-                (0, 1):  pygame.transform.rotate(surf, -90),
-            }
-
-        # 我们需要返回的是一个“每个方向都包含[Main, Up, Down]”的字典
-        # 我们先生成单张图的旋转版，再组合
-        dict_main = create_rotations(surf_main)
-        dict_up = create_rotations(surf_up)
-        dict_down = create_rotations(surf_down)
-        
-        final_assets = {}
-        # 遍历其中一个字典的key (方向)
-        for direction in dict_main.keys():
-            final_assets[direction] = [
-                dict_main[direction], 
-                dict_up[direction], 
-                dict_down[direction]
-            ]
-            
-        return final_assets
-    
-    def _generate_coin_assets(self):
-        """
-        生成像素金币
-        """
-        frames = []
-        
-        # --- 配置参数 ---
-        pixel_size = 2      # 2px 精度 -> 18px 总大小
-        grid_h = 9          # 9行高度 (y=0~8)
-        
-        # 居中偏移
-        center_offset = (TILE_SIZE - grid_h * pixel_size) // 2
-        
-        c_gold = COLOR_COIN
-        c_edge = COLOR_COIN_EDGE
-
-        # 使用奇数序列保证中心对称
-        widths = [9, 7, 5, 3, 1]
-        
-        for w in widths:
-            surf = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
-            
-            # 网格内偏移
-            offset_x = (9 - w) // 2
-            mid_x = w // 2  # 当前宽度的中心点
-            
-            for ly in range(grid_h):
-                for lx in range(w):
-                    
-                    # --- 核心优化逻辑：基于中心距离 ---
-                    dist = abs(lx - mid_x) # 当前像素距离中心的格数
-                    
-                    # 1. 核心定义 (Core)
-                    # 关键优化：当 w>=7 时，核心保持半径1 (即宽度3)
-                    # 只有当 w<7 (变得很窄) 时，核心才缩为半径0 (即宽度1)
-                    core_radius = 1 if w >= 7 else 0
-                    is_core_area = (dist <= core_radius)
-                    
-                    # 2. 间隙定义 (Gap)
-                    # 间隙永远紧贴核心外侧
-                    is_gap_area = (dist == core_radius + 1)
-                    
-                    # --- 绘制判断 ---
-                    should_draw = False
-                    
-                    # [切角层] y=0, 8
-                    if ly == 0 or ly == 8:
-                         # 只要不是最边缘(切角)就画
-                         if w == 1 or (0 < lx < w - 1): should_draw = True
-                             
-                    # [实心层] y=1, 7 (加厚)
-                    elif ly == 1 or ly == 7:
-                        should_draw = True
-                        
-                    # [桥接层] y=2, 6
-                    elif ly == 2 or ly == 6:
-                        if w <= 3 or not is_core_area:
-                            should_draw = True
-                            
-                    # [核心层] y=3, 4, 5
-                    elif 3 <= ly <= 5:
-                        if w <= 3 or (not is_gap_area):
-                            should_draw = True
-
-                    # --- 渲染 ---
-                    if should_draw:
-                        color = c_gold
-                        # 动态阴影：每一行的视觉最右侧加深
-                        is_edge = (lx == w - 1)
-                        if (ly == 0 or ly == 8) and w > 1 and lx == w - 2: is_edge = True
-                        
-                        if is_edge or ly == 8:
-                            color = c_edge
-                        
-                        # 坐标计算
-                        dx = center_offset + (offset_x + lx) * pixel_size
-                        dy = center_offset + ly * pixel_size
-                        
-                        pygame.draw.rect(surf, color, (dx, dy, pixel_size, pixel_size))
-
-            frames.append(surf)
-
-        return frames + frames[-2:0:-1]
 
     def _build_level(self):
         """解析地图数据并生成物体"""
@@ -245,7 +78,6 @@ class Level:
         Wall(
             groups=[self.visible_sprites, self.obstacle_sprites], 
             pos=pos, 
-            surface=self.wall_surf
         )
     
     def _spawn_door(self, pos):
@@ -253,7 +85,6 @@ class Level:
         Door(
             groups=[self.visible_sprites, self.goal_sprites],
             pos=pos,
-            surface=self.door_surf
         )
 
     def _spawn_coin(self, pos):
@@ -261,7 +92,6 @@ class Level:
         Coin(
             groups=[self.visible_sprites, self.coin_sprites], # 加入可见组和金币组
             pos=pos,
-            frames=self.coin_frames # 传入那套动画素材
         )
     
     def _spawn_trap(self, pos, direction_char):
@@ -281,8 +111,6 @@ class Level:
             groups=[self.visible_sprites, self.obstacle_sprites], 
             pos=pos,
             player=self.player, # 需要玩家引用来检测距离
-            # 2. 【关键】传入生成鬼的函数作为回调
-            # 注意这里传的是 self._spawn_ghost 这个方法本身，不要加括号调用
             spawn_ghost_callback=self._spawn_ghost 
         )
 
@@ -291,7 +119,6 @@ class Level:
         Ghost(
             groups=[self.visible_sprites, self.damage_sprites], # 加入伤害组
             pos=pos,
-            surface=self.ghost_surf,
             obstacle_sprites=self.obstacle_sprites,
             player=self.player # 鬼需要知道人在哪
         )
@@ -300,10 +127,8 @@ class Level:
         self.player = Player(
             groups=[self.visible_sprites], 
             pos=pos, 
-            surface=self.player_surf,
             obstacle_sprites=self.obstacle_sprites, 
             create_particle_func=self.trigger_particle, # 传入回调
-            line_assets=self.trail_assets
         )
 
     # --- 粒子/特效接口 ---
@@ -325,8 +150,10 @@ class Level:
 
     def _spawn_trail(self, pos, direction_key):
         """内部方法：专门处理复杂的拖尾生成"""
-        if direction_key in self.trail_assets:
-            surfaces = self.trail_assets[direction_key]
+        assets = AssetFactory.get_trail_assets()
+
+        if direction_key in assets:
+            surfaces = assets[direction_key]
             # 依次生成三条拖尾
             TrailSprite([self.visible_sprites], pos, surfaces[0], TRAIL_LIFE_MAIN)
             TrailSprite([self.visible_sprites], pos, surfaces[1], TRAIL_LIFE_UP)

@@ -27,6 +27,13 @@ GHOST_SPEED = 1    # 鬼的移动速度
 COLOR_GHOST = (255, 0, 0)    # 字的颜色：红色
 COCOON_SPAWN_DELAY = 1000    # 茧孵化所需时间 (毫秒)
 
+# 墙和门的颜色设置
+COLOR_WALL = (128, 128, 128) # 墙：灰色
+COLOR_DOOR = (255, 215, 0)   # 门：金色
+
+# 玩家设置
+COLOR_PLAYER_TEXT = (255, 255, 0) # 玩家文字：标准黄色
+
 # 陷阱和刺的设置
 TRAP_COOLDOWN = 3000         # 陷阱总冷却时间 (要比刺的整套动作长)
 SPIKE_WARNING_TIME = 500     # 玩家触发后，刺伸出前的延迟 (预警时间)
@@ -46,7 +53,7 @@ COIN_ANIMATION_SPEED = 0.15     # 动画播放速度
 TRAIL_LIFE_MAIN = int((2 * TILE_SIZE) / PLAYER_SPEED)     # 中间拖尾的生命周期
 TRAIL_LIFE_UP = int((1.3 * TILE_SIZE) / PLAYER_SPEED)     # 上侧拖尾生命周期
 TRAIL_LIFE_DOWN = int((1.5 * TILE_SIZE) / PLAYER_SPEED)   # 下侧拖尾生命周期
-COLOR_LINES = (218, 165, 32)                              # 黄色
+COLOR_LINES = (255, 255, 0)                               # 黄色
 
 # 气泡设置
 BUBBLE_COLOR = (211, 211, 211)                            # 浅灰色

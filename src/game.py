@@ -18,7 +18,7 @@ class Game:
         self.clock = pygame.time.Clock()
 
         # 实例化Level
-        self.current_level_index = 1
+        self.current_level_index = 2
         self.level = Level(self.current_level_index)    # 加载第0关
         self.game_state = 'level_start'                 # 游戏状态level_start, playing, game_over
         

@@ -1,9 +1,7 @@
 # src/maps.py
-
+from map_generator import MapGenerator
 # 0号测试关卡
 # W = 墙, P = 玩家, . = 空地 (暂时只用这两个测试)
-
-
 
 LEVELS = {
     0: [
@@ -89,3 +87,8 @@ LEVELS = {
     ],
 
 }
+
+generator = MapGenerator(width=25, height=25)
+
+for i in range(3, 8):
+    LEVELS[i] = generator.generate()
