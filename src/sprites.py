@@ -106,10 +106,6 @@ class Cocoon(pygame.sprite.Sprite):
         """玩家靠近，开始孵化计时"""
         self.is_triggered = True
         self.trigger_time = pygame.time.get_ticks()
-        # 可选：触发时的视觉反馈（例如变亮一点）
-        # temp_surf = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
-        # temp_surf.fill((255, 50, 50, 100)) # 半透明红蒙版
-        # self.image.blit(temp_surf, (0,0))
 
     def hatch(self):
         """时间到，孵化成鬼"""
@@ -225,116 +221,139 @@ class Spike(pygame.sprite.Sprite):
         )
 
 class Trap(pygame.sprite.Sprite):
-    """陷阱本体：青色虚线边框 + 旋转的“刺”字"""
+    """
+    智能陷阱：
+    1. 默认朝上。
+    2. 索敌成功后，字瞬间旋转指向玩家（不改变颜色），随后伸出刺。
+    """
     def __init__(self, groups, pos, direction_char, damage_group, player):
         super().__init__(groups)
         
-        # 1. 解析方向
-        self.direction = pygame.math.Vector2()
-        angle = 0 # 文字旋转角度
-        if direction_char == '^': 
-            self.direction.y = -1
-            angle = 0
-        elif direction_char == 'v': 
-            self.direction.y = 1
-            angle = 180
-        elif direction_char == '<': 
-            self.direction.x = -1
-            angle = 90
-        elif direction_char == '>': 
-            self.direction.x = 1
-            angle = -90
-
-        # 2. 准备字体素材
-        font_size = int(TILE_SIZE * 0.9)
-        try:
-            raw_font = pygame.font.SysFont(['simhei', 'microsoftyahei', 'pingfangsc'], font_size)
-        except:
-            raw_font = pygame.font.Font(None, font_size)
-            
-        # 预渲染文字并旋转
-        raw_text = raw_font.render("刺", True, COLOR_CYAN)
-        self.text_surf = pygame.transform.rotate(raw_text, angle)
-
-        # 3. 初始化图像
+        # 1. 基础属性
         self.image = pygame.Surface((TILE_SIZE, TILE_SIZE))
         self.rect = self.image.get_rect(topleft=pos)
-        self._update_visuals(COLOR_TRAP) # 初始绘制 (深灰底)
+        self.pos = pygame.math.Vector2(pos)
         
-        # 4. 逻辑依赖
+        # 2. 字体准备
+        font_size = int(TILE_SIZE * 0.9)
+        try:
+            self.raw_font = pygame.font.SysFont(['simhei', 'microsoftyahei', 'pingfangsc'], font_size)
+        except:
+            self.raw_font = pygame.font.Font(None, font_size)
+            
+        self.raw_text_surf = self.raw_font.render("刺", True, COLOR_CYAN)
+
+        # 3. 逻辑依赖
         self.damage_group = damage_group
         self.visible_groups = groups[0]
         self.player = player
         
+        # 4. 状态管理
+        self.direction = pygame.math.Vector2(0, -1)
+        self.angle = 0 
+        
         self.status = 'idle'
         self.cooldown_timer = 0
         
-        # 5. 触发区域
-        self.trigger_rect = self.rect.copy()
-        self.trigger_rect.x += self.direction.x * TILE_SIZE
-        self.trigger_rect.y += self.direction.y * TILE_SIZE
-        self.trigger_rect.inflate_ip(-10, -10)
+        # 初始绘制
+        self._update_visuals(COLOR_TRAP)
 
     def _draw_border(self, surface, color):
         """内部辅助：绘制虚线边框"""
         rect = surface.get_rect()
         x, y, w, h = rect.x, rect.y, rect.width, rect.height
         dash_len, gap_len = 5, 3
-        
-        # 定义四条边线段
         lines = [
-            ((x, y), (x + w - 1, y)),             # Top
-            ((x + w - 1, y), (x + w - 1, y + h - 1)), # Right
-            ((x + w - 1, y + h - 1), (x, y + h - 1)), # Bottom
-            ((x, y + h - 1), (x, y))              # Left
+            ((x, y), (x + w - 1, y)), 
+            ((x + w - 1, y), (x + w - 1, y + h - 1)), 
+            ((x + w - 1, y + h - 1), (x, y + h - 1)), 
+            ((x, y + h - 1), (x, y))
         ]
-
         for start, end in lines:
             x1, y1 = start
             x2, y2 = end
-            total_dist = math.hypot(x2 - x1, y2 - y1)
-            if total_dist == 0: continue
-            
-            dx = (x2 - x1) / total_dist
-            dy = (y2 - y1) / total_dist
-            
+            dist = math.hypot(x2 - x1, y2 - y1)
+            if dist == 0: continue
+            dx, dy = (x2 - x1) / dist, (y2 - y1) / dist
             curr = 0
-            while curr < total_dist:
+            while curr < dist:
                 p1 = (x1 + dx * curr, y1 + dy * curr)
-                end_dist = min(curr + dash_len, total_dist)
+                end_dist = min(curr + dash_len, dist)
                 p2 = (x1 + dx * end_dist, y1 + dy * end_dist)
-                
-                pygame.draw.line(surface, color, p1, p2, 2) # 线宽2
+                pygame.draw.line(surface, color, p1, p2, 2)
                 curr += dash_len + gap_len
 
     def _update_visuals(self, bg_color):
-        """统一绘制逻辑：改变底色，但保留文字和边框"""
+        """绘制外观：根据当前 self.angle 旋转文字"""
         # 1. 填充背景
         self.image.fill(bg_color)
         
         # 2. 绘制边框
         self._draw_border(self.image, COLOR_CYAN)
         
-        # 3. 绘制文字 (居中)
-        text_rect = self.text_surf.get_rect(center=(TILE_SIZE // 2, TILE_SIZE // 2))
-        self.image.blit(self.text_surf, text_rect)
+        # 3. 绘制文字 (关键：旋转)
+        rotated_text = pygame.transform.rotate(self.raw_text_surf, self.angle)
+        text_rect = rotated_text.get_rect(center=(TILE_SIZE // 2, TILE_SIZE // 2))
+        self.image.blit(rotated_text, text_rect)
 
     def update(self):
         current_time = pygame.time.get_ticks()
         
-        # 冷却检查
+        # --- 冷却状态 ---
         if self.status == 'cooldown':
             if current_time - self.cooldown_timer > TRAP_COOLDOWN:
                 self.status = 'idle'
         
-        # 触发检查
+        # --- 侦测状态 ---
         elif self.status == 'idle':
-            if self.trigger_rect.colliderect(self.player.rect):
-                self.trigger_attack(current_time)
+            self._detect_player(current_time)
+
+    def _detect_player(self, current_time):
+        """核心逻辑：检测玩家是否在十字瞄准线上"""
+        
+        tx, ty = self.rect.center
+        px, py = self.player.rect.center
+        dx = px - tx
+        dy = py - ty
+        
+        alignment_threshold = TILE_SIZE // 2 
+        
+        max_range = 1 * TILE_SIZE 
+        
+        target_dir = None
+        target_angle = 0
+        found_target = False
+        
+        # 1. 检查水平
+        if abs(dy) < alignment_threshold and abs(dx) <= max_range:
+            if dx > 0: 
+                target_dir = pygame.math.Vector2(1, 0)
+                target_angle = -90 
+            else:      
+                target_dir = pygame.math.Vector2(-1, 0)
+                target_angle = 90  
+            found_target = True
+                
+        # 2. 检查垂直
+        elif abs(dx) < alignment_threshold and abs(dy) <= max_range:
+            if dy > 0: 
+                target_dir = pygame.math.Vector2(0, 1)
+                target_angle = 180 
+            else:      
+                target_dir = pygame.math.Vector2(0, -1)
+                target_angle = 0   
+            found_target = True
+
+        # 3. 触发攻击
+        if found_target:
+            self.direction = target_dir
+            self.angle = target_angle
+            self.trigger_attack(current_time)
 
     def trigger_attack(self, time):
         self.status = 'cooldown'
         self.cooldown_timer = time
+        self._update_visuals(COLOR_TRAP)
         
         # 生成刺
         Spike(
