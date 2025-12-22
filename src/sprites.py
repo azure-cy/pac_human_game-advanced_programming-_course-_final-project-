@@ -4,30 +4,21 @@ import math
 from settings import *
 from assets import AssetFactory
 
-# ==========================================
-# 基础类 (提取公共逻辑)
-# ==========================================
-
+# 基础类
 class BaseStaticSprite(pygame.sprite.Sprite):
     def __init__(self, groups, pos, text, color):
         super().__init__(groups)
-        # 统一调用工厂，默认实线边框
         self.image = AssetFactory.create_tile(text, color, border_style='solid')
         self.rect = self.image.get_rect(topleft=pos)
 
 
-# ==========================================
 # 游戏实体类 (Sprites)
-# ==========================================
-
 class Wall(BaseStaticSprite):
     def __init__(self, groups, pos):
-        # 墙：绿色，实线
         super().__init__(groups, pos, "墙", COLOR_WALL)
 
 class Door(BaseStaticSprite):
     def __init__(self, groups, pos):
-        # 门：金色，实线
         super().__init__(groups, pos, "门", COLOR_DOOR)
 
 class Coin(pygame.sprite.Sprite):
@@ -48,6 +39,7 @@ class Cocoon(pygame.sprite.Sprite):
         self.pos = pos
         self.player = player
 
+        # 引用组以便生成 Ghost
         self.visible_group = visible_group
         self.damage_group = damage_group
         self.obstacle_sprites = obstacle_sprites
@@ -62,16 +54,19 @@ class Cocoon(pygame.sprite.Sprite):
     def update(self):
         if self.is_triggered:
             if pygame.time.get_ticks() - self.trigger_time >= COCOON_SPAWN_DELAY:
-                Ghost(
-                    groups=[self.visible_group, self.damage_group], 
-                    pos=self.rect.topleft, 
-                    obstacle_sprites=self.obstacle_sprites, 
-                    player=self.player
-                )
-                self.kill()
+                self.spawn_ghost()
         elif self.detection_rect.colliderect(self.player.rect):
             self.is_triggered = True
             self.trigger_time = pygame.time.get_ticks()
+    
+    def spawn_ghost(self):
+        Ghost(
+            groups=self.target_groups, 
+            pos=self.rect.topleft, 
+            obstacle_sprites=self.obstacle_sprites, 
+            player=self.player
+        )
+        self.kill()
 
 class Trap(pygame.sprite.Sprite):
     def __init__(self, groups, pos, damage_group, player):
@@ -84,16 +79,14 @@ class Trap(pygame.sprite.Sprite):
         # 逻辑属性
         self.angle = 0
         self.direction = pygame.math.Vector2(0, -1)
-        self.direction = pygame.math.Vector2(0, -1)
         self.status = 'idle'
         self.cooldown_timer = 0
         
-        # 初始绘制 (青色，虚线)
+        # 初始绘制 
         self._refresh_visuals()
         self.rect = self.image.get_rect(topleft=pos)
 
     def _refresh_visuals(self):
-        # 动态根据 self.angle 绘制
         self.image = AssetFactory.create_tile(
             "刺", COLOR_CYAN, bg_color=COLOR_TRAP, 
             border_style='dashed', angle=self.angle
@@ -205,10 +198,6 @@ class Player(pygame.sprite.Sprite):
         self.status = 'idle'
         self.move_start_time = 0
 
-        # # === 新增：粒子特效的计时器 ===
-        # self.particle_timer = 0 
-        # self.particle_cooldown = 150
-
     def update(self):
         if self.status == 'idle':
             self._input()
@@ -241,13 +230,6 @@ class Player(pygame.sprite.Sprite):
     def _move(self):
         key = (int(self.direction.x), int(self.direction.y))
         self.create_particle('trail', self.rect.topleft, direction_key=key)
-
-        # current_time = pygame.time.get_ticks()
-        
-        # if current_time - self.particle_timer > self.particle_cooldown:
-        #     key = (int(self.direction.x), int(self.direction.y))
-        #     self.create_particle('trail', self.rect.topleft, direction_key=key)
-        #     self.particle_timer = current_time # 重置计时器
         
         self.pos += self.direction * self.speed
         self.rect.topleft = round(self.pos.x), round(self.pos.y)
@@ -275,8 +257,6 @@ class Ghost(pygame.sprite.Sprite):
     def __init__(self, groups, pos, obstacle_sprites, player):
         super().__init__(groups)
         
-        # [修改] 移除 surface 参数
-        # 使用工厂生成：红色 "鬼"，无边框
         self.image = AssetFactory.create_tile("鬼", COLOR_GHOST, border_style='none')
         self.rect = self.image.get_rect(topleft=pos)
         self.pos = pygame.math.Vector2(pos)

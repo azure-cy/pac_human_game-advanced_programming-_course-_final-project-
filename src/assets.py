@@ -8,14 +8,13 @@ class AssetFactory:
     [资源工厂] 
     独立负责所有图形资源的生成与缓存 (享元模式)。
     """
-
-    # === 缓存池 ===
+    #缓存池
     _trail_cache = None
     _coin_cache = None
     _bubble_cache = None 
 
-    @classmethod  # 注意：这里建议改用 @classmethod，因为我们要访问 cls._trail_cache
-    def get_trail_assets(cls): # 改名：从 create 改为 get，暗示获取（可能是缓存的）
+    @classmethod
+    def get_trail_assets(cls):
         """获取线条图案（带缓存）"""
         if cls._trail_cache is None:
             # === 如果缓存为空，则执行原来的生成逻辑 ===
@@ -63,10 +62,10 @@ class AssetFactory:
         return cls._trail_cache
     
     @classmethod
-    def get_coin_assets(cls): # 改名：从 create 改为 get
+    def get_coin_assets(cls):
         """获取金币动画帧（带缓存）"""
         if cls._coin_cache is None:
-            # === 如果缓存为空，则执行原来的生成逻辑 ===
+            # === 如果缓存为空，则执行生成逻辑 ===
             """生成像素金币动画帧"""
             frames = []
             pixel_size = 2      
@@ -116,9 +115,7 @@ class AssetFactory:
     
     @classmethod
     def get_bubble_asset(cls, diameter, color):
-        """
-        [新增优化] 获取气泡资源（享元模式）
-        """
+        """获取气泡资源（享元模式)"""
         if cls._bubble_cache is None:
             cls._bubble_cache = {}
         
@@ -146,7 +143,6 @@ class AssetFactory:
         修正：坐标使用 w-1, h-1 确保画在画布内部。
         """
         w, h = surface.get_size()
-        # 顺时针四个角，注意 -1 偏移
         pts = [(0, 0), (w - 1, 0), (w - 1, h - 1), (0, h - 1)]
 
         if style == 'solid':
@@ -177,7 +173,6 @@ class AssetFactory:
     @staticmethod
     def create_tile(text, color, bg_color=None, border_style='solid', angle=0):
         """
-        [万能接口] 生成方块素材
         :param text: 显示的文字 (如 '墙', '我')
         :param color: 文字和边框颜色
         :param bg_color: 背景填充色
@@ -186,24 +181,19 @@ class AssetFactory:
         """
         image = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
         
-        # 1. 背景
         if bg_color:
             image.fill(bg_color)
 
-        # 2. 边框 (根据样式绘制)
         if border_style != 'none':
             AssetFactory._draw_border(image, color, style=border_style)
 
-        # 3. 文字
         font_size = int(TILE_SIZE * 0.8)
         font = AssetFactory.get_font(font_size, bold=True)
         text_surf = font.render(text, True, color)
         
-        # 4. 旋转
         if angle != 0:
             text_surf = pygame.transform.rotate(text_surf, angle)
             
-        # 5. 居中绘制
         text_rect = text_surf.get_rect(center=(TILE_SIZE // 2, TILE_SIZE // 2))
         image.blit(text_surf, text_rect)
         
@@ -211,7 +201,7 @@ class AssetFactory:
 
     @staticmethod
     def create_spike_bullet(direction, color):
-        """生成飞出的刺（子弹形状）"""
+        """生成飞出的刺"""
         surf = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
         arrow_len, shaft_len = 8, 20
         start_x = (TILE_SIZE - (arrow_len + shaft_len)) // 2
