@@ -224,7 +224,8 @@ class Level:
             'W': self._spawn_wall,
             'G': self._spawn_ghost,
             'D': self._spawn_door,
-            'C': self._spawn_coin
+            'C': self._spawn_coin,
+            'O': self._spawn_cocoon,
         }
         trap_chars = ['^', 'v', '<', '>'] # 陷阱符号列表
 
@@ -271,6 +272,18 @@ class Level:
             direction_char=direction_char,
             damage_group=self.damage_sprites, # 传入伤害组，让它能生成刺
             player=self.player                # 传入玩家，让它能检测位置
+        )
+    
+    def _spawn_cocoon(self, pos):
+        """新增：生成茧"""
+        Cocoon(
+            # 1. 加入可见组和障碍物组 (因为它像墙一样挡路)
+            groups=[self.visible_sprites, self.obstacle_sprites], 
+            pos=pos,
+            player=self.player, # 需要玩家引用来检测距离
+            # 2. 【关键】传入生成鬼的函数作为回调
+            # 注意这里传的是 self._spawn_ghost 这个方法本身，不要加括号调用
+            spawn_ghost_callback=self._spawn_ghost 
         )
 
     def _spawn_ghost(self, pos):
