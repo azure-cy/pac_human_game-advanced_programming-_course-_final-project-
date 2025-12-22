@@ -2,6 +2,7 @@
 import pygame
 import random
 from settings import *
+from assets import AssetFactory
 """特效sprites类"""
 
 class TrailSprite(pygame.sprite.Sprite):
@@ -30,7 +31,7 @@ class BubbleSprite(pygame.sprite.Sprite):
         radius = diameter // 2
 
         # 在透明画布的中心画一个圆
-        self.image = pygame.Surface((diameter, diameter), pygame.SRCALPHA)       # 创建一个支持透明通道的 Surface (SRCALPHA 是关键)，这样圆的四个角落才是透明的，而不是黑色的
+        self.image = AssetFactory.get_bubble_asset(diameter, BUBBLE_COLOR)
         pygame.draw.circle(self.image, BUBBLE_COLOR, (radius, radius), radius)   # 参数：(画布, 颜色, 圆心坐标, 半径)
         
         # 初始位置：在角色中心附近随机偏移

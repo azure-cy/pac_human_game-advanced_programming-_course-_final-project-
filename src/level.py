@@ -3,7 +3,7 @@ import pygame
 from settings import *
 from maps import LEVELS
 from sprites import Wall, Door, Coin, Cocoon, Trap, Ghost, Player
-from sprites import AssetFactory
+from assets import AssetFactory
 from particles import TrailSprite, BubbleSprite
 from camera import CameraGroup
 
