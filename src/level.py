@@ -26,7 +26,14 @@ class Level:
         # 获取当前地图数据
         current_map = LEVELS[self.level_index]
 
-        # 1. 生成玩家
+        # 生成碰撞网格
+        self.obstacle_grid = set()
+        for r, row in enumerate(current_map):
+            for c, col in enumerate(row):
+                if col == 'W' or col == 'O' or col == '^':
+                    self.obstacle_grid.add((c, r))
+
+        # 生成玩家
         for r, row in enumerate(current_map):
             for c, col in enumerate(row):
                 if col == 'P':
@@ -37,7 +44,7 @@ class Level:
                         create_particle_func=self.trigger_particle
                     )
 
-        # 2. 生成其他物体
+        # 生成其他物体
         for r, row in enumerate(current_map):
             for c, col in enumerate(row):
                 pos = (c * TILE_SIZE, r * TILE_SIZE)
@@ -64,7 +71,8 @@ class Level:
                         groups=[self.visible_sprites, self.damage_sprites], # 加入伤害组
                         pos=pos,
                         obstacle_sprites=self.obstacle_sprites,
-                        player=self.player # 鬼需要知道人在哪
+                        player=self.player, # 鬼需要知道人在哪
+                        wall_grid=self.obstacle_grid
                     )
                     
                 elif col == 'O':
@@ -74,7 +82,8 @@ class Level:
                         player=self.player, # 需要玩家引用来检测距离
                         visible_group=self.visible_sprites,
                         damage_group=self.damage_sprites,
-                        obstacle_sprites=self.obstacle_sprites
+                        obstacle_sprites=self.obstacle_sprites,
+                        wall_grid=self.obstacle_grid
                     )
                 
                 elif col == '^':

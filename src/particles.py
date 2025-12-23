@@ -9,16 +9,13 @@ class TrailSprite(pygame.sprite.Sprite):
     """玩家移动时的拖尾类"""
     def __init__(self, groups, pos, surf, life_time):
         super().__init__(groups)
-        # 直接使用传入的图案 surface
-        self.image = surf.copy() 
+        self.image = surf
         self.rect = self.image.get_rect(topleft=pos)
         
         self.timer = life_time           # 拖尾存在的生命周期
-        self.original_alpha = 255        # 初始透明度；255为最大
 
     def update(self):
-        self.timer -= 1
-        
+        self.timer -= 1       
         if self.timer <= 0:
             self.kill()
 

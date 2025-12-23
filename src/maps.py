@@ -7,14 +7,14 @@ LEVELS = {
     0: [
     "WWWWWWWWWWWWWWW",
     "W.......WW...W",
-    "W.WWWW..W..GWW",
-    "W.WWW..WW..G.W",
+    "W.WWWW..WCCCWW",
+    "W.WWW..WW....W",
     "W.WW..WW.....W",
     "W.W..WW......W",
     "W...WW.......W",
     "W..WWW.......W",
     "W........P...W",
-    "WW..........DW",
+    "WW..........CW",
     "WWWWWWWWWWWWWW",
     ], 
     

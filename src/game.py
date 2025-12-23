@@ -57,10 +57,8 @@ class Game:
                     self.next_level()
 
             elif self.game_state == 'game_over':
-                # 1. 画 Level (为了背景显示最后死掉的画面，而不是黑屏)
                 self.level.visible_sprites.custom_draw(self.level.player) 
                 
-                # 2. 调用我们在 UI 类里写好的函数
                 self.ui.show_game_over()
             
             elif self.game_state == 'level_start':

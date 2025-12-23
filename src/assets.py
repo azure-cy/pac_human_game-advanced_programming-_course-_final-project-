@@ -12,6 +12,9 @@ class AssetFactory:
     _trail_cache = None
     _coin_cache = None
     _bubble_cache = None 
+    _font_cache = {}    # 缓存字体对象
+    _tile_cache = {}    # 缓存绘制好的方块 Surface
+    _bullet_cache = {}  # 缓存子弹 Surface
 
     @classmethod
     def get_trail_assets(cls):
@@ -128,13 +131,81 @@ class AssetFactory:
             
         return cls._bubble_cache[key]
 
-    @staticmethod
-    def get_font(size, bold=False):
-        try:
-            return pygame.font.SysFont(['simhei', 'microsoftyahei', 'pingfangsc'], size, bold=bold)
-        except:
-            return pygame.font.Font(None, size)
+    @classmethod
+    def get_font(cls, size, bold=False):
+        key = (size, bold)
+        if key not in cls._font_cache:
+            try:
+                # 尝试加载系统字体
+                font = pygame.font.SysFont(['simhei', 'microsoftyahei', 'pingfangsc'], size, bold=bold)
+            except:
+                # 失败则使用默认字体
+                font = pygame.font.Font(None, size)
+            cls._font_cache[key] = font
+            
+        return cls._font_cache[key]
 
+    @classmethod
+    def create_tile(cls, text, color, bg_color=None, border_style='solid', angle=0):
+        """
+        :param text: 显示的文字 (如 '墙', '我')
+        :param color: 文字和边框颜色
+        :param bg_color: 背景填充色
+        :param border_style: 'solid'(实线), 'dashed'(虚线), 'none'(无边框)
+        :param angle: 旋转角度
+        """
+        key = (text, color, bg_color, border_style, angle)
+        if key not in cls._tile_cache:
+            image = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+            
+            if bg_color:
+                image.fill(bg_color)
+
+            if border_style != 'none':
+                AssetFactory._draw_border(image, color, style=border_style)
+
+            font_size = int(TILE_SIZE * 0.8)
+            font = AssetFactory.get_font(font_size, bold=True)
+            text_surf = font.render(text, True, color)
+            
+            if angle != 0:
+                text_surf = pygame.transform.rotate(text_surf, angle)
+                
+            text_rect = text_surf.get_rect(center=(TILE_SIZE // 2, TILE_SIZE // 2))
+            image.blit(text_surf, text_rect)
+
+            cls._tile_cache[key] = image
+        
+        return cls._tile_cache[key]
+
+    @classmethod
+    def create_spike_bullet(cls, direction, color):
+        """生成飞出的刺"""
+        dir_key = (direction.x, direction.y)
+        key = (dir_key, color)
+
+        if key not in cls._bullet_cache:
+            surf = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+            arrow_len, shaft_len = 8, 20
+            start_x = (TILE_SIZE - (arrow_len + shaft_len)) // 2
+            
+            # 画三根刺
+            for cy in [5, 15, 25]:
+                # 杆
+                pygame.draw.rect(surf, color, (start_x, cy - 1, shaft_len, 2))
+                # 尖
+                pts = [(start_x + 28, cy), (start_x + 20, cy - 3), (start_x + 20, cy + 3)]
+                pygame.draw.polygon(surf, color, pts)
+                
+            # 根据方向旋转
+            if direction.x == -1: surf = pygame.transform.flip(surf, True, False)
+            elif direction.y == -1: surf = pygame.transform.rotate(surf, 90)
+            elif direction.y == 1: surf = pygame.transform.rotate(surf, -90)
+
+            cls._bullet_cache[key] = surf
+            
+        return cls._bullet_cache[key]
+    
     @staticmethod
     def _draw_border(surface, color, style='solid'):
         """
@@ -169,53 +240,3 @@ class AssetFactory:
                     p2 = (p1[0] + dx * draw_len, p1[1] + dy * draw_len)
                     pygame.draw.line(surface, color, p1, p2, 2)
                     curr += dash_len + gap_len
-
-    @staticmethod
-    def create_tile(text, color, bg_color=None, border_style='solid', angle=0):
-        """
-        :param text: 显示的文字 (如 '墙', '我')
-        :param color: 文字和边框颜色
-        :param bg_color: 背景填充色
-        :param border_style: 'solid'(实线), 'dashed'(虚线), 'none'(无边框)
-        :param angle: 旋转角度
-        """
-        image = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
-        
-        if bg_color:
-            image.fill(bg_color)
-
-        if border_style != 'none':
-            AssetFactory._draw_border(image, color, style=border_style)
-
-        font_size = int(TILE_SIZE * 0.8)
-        font = AssetFactory.get_font(font_size, bold=True)
-        text_surf = font.render(text, True, color)
-        
-        if angle != 0:
-            text_surf = pygame.transform.rotate(text_surf, angle)
-            
-        text_rect = text_surf.get_rect(center=(TILE_SIZE // 2, TILE_SIZE // 2))
-        image.blit(text_surf, text_rect)
-        
-        return image
-
-    @staticmethod
-    def create_spike_bullet(direction, color):
-        """生成飞出的刺"""
-        surf = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
-        arrow_len, shaft_len = 8, 20
-        start_x = (TILE_SIZE - (arrow_len + shaft_len)) // 2
-        
-        # 画三根刺
-        for cy in [5, 15, 25]:
-            # 杆
-            pygame.draw.rect(surf, color, (start_x, cy - 1, shaft_len, 2))
-            # 尖
-            pts = [(start_x + 28, cy), (start_x + 20, cy - 3), (start_x + 20, cy + 3)]
-            pygame.draw.polygon(surf, color, pts)
-            
-        # 根据方向旋转
-        if direction.x == -1: surf = pygame.transform.flip(surf, True, False)
-        elif direction.y == -1: surf = pygame.transform.rotate(surf, 90)
-        elif direction.y == 1: surf = pygame.transform.rotate(surf, -90)
-        return surf

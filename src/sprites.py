@@ -8,17 +8,19 @@ from assets import AssetFactory
 class BaseStaticSprite(pygame.sprite.Sprite):
     def __init__(self, groups, pos, text, color):
         super().__init__(groups)
+        # 统一调用工厂，默认实线边框
         self.image = AssetFactory.create_tile(text, color, border_style='solid')
         self.rect = self.image.get_rect(topleft=pos)
-
 
 # 游戏实体类 (Sprites)
 class Wall(BaseStaticSprite):
     def __init__(self, groups, pos):
+        # 墙：绿色，实线
         super().__init__(groups, pos, "墙", COLOR_WALL)
 
 class Door(BaseStaticSprite):
     def __init__(self, groups, pos):
+        # 门：金色，实线
         super().__init__(groups, pos, "门", COLOR_DOOR)
 
 class Coin(pygame.sprite.Sprite):
@@ -34,15 +36,15 @@ class Coin(pygame.sprite.Sprite):
         self.image = self.frames[int(self.idx)]
 
 class Cocoon(pygame.sprite.Sprite):
-    def __init__(self, groups, pos, player, visible_group, damage_group, obstacle_sprites):
+    def __init__(self, groups, pos, player, visible_group, damage_group, obstacle_sprites, wall_grid):
         super().__init__(groups)
         self.pos = pos
         self.player = player
 
-        # 引用组以便生成 Ghost
         self.visible_group = visible_group
         self.damage_group = damage_group
         self.obstacle_sprites = obstacle_sprites
+        self.wall_grid = wall_grid
         
         self.image = AssetFactory.create_tile("茧", COLOR_GHOST, border_style='solid')
         self.rect = self.image.get_rect(topleft=pos)
@@ -54,19 +56,17 @@ class Cocoon(pygame.sprite.Sprite):
     def update(self):
         if self.is_triggered:
             if pygame.time.get_ticks() - self.trigger_time >= COCOON_SPAWN_DELAY:
-                self.spawn_ghost()
+                Ghost(
+                    groups=[self.visible_group, self.damage_group], 
+                    pos=self.rect.topleft, 
+                    obstacle_sprites=self.obstacle_sprites, 
+                    player=self.player,
+                    wall_grid=self.wall_grid
+                )
+                self.kill()
         elif self.detection_rect.colliderect(self.player.rect):
             self.is_triggered = True
             self.trigger_time = pygame.time.get_ticks()
-    
-    def spawn_ghost(self):
-        Ghost(
-            groups=self.target_groups, 
-            pos=self.rect.topleft, 
-            obstacle_sprites=self.obstacle_sprites, 
-            player=self.player
-        )
-        self.kill()
 
 class Trap(pygame.sprite.Sprite):
     def __init__(self, groups, pos, damage_group, player):
@@ -79,18 +79,18 @@ class Trap(pygame.sprite.Sprite):
         # 逻辑属性
         self.angle = 0
         self.direction = pygame.math.Vector2(0, -1)
+        self.direction = pygame.math.Vector2(0, -1)
         self.status = 'idle'
         self.cooldown_timer = 0
         
-        # 初始绘制 
-        self._refresh_visuals()
-        self.rect = self.image.get_rect(topleft=pos)
-
-    def _refresh_visuals(self):
-        self.image = AssetFactory.create_tile(
+        # 初始绘制 (青色，虚线)
+        self.image_base = AssetFactory.create_tile(
             "刺", COLOR_CYAN, bg_color=COLOR_TRAP, 
-            border_style='dashed', angle=self.angle
+            border_style='dashed', angle=0
         )
+        
+        self.image = self.image_base
+        self.rect = self.image.get_rect(topleft=pos)
 
     def update(self):
         now = pygame.time.get_ticks()
@@ -120,7 +120,12 @@ class Trap(pygame.sprite.Sprite):
     def _trigger(self, now):
         self.status = 'cooldown'
         self.cooldown_timer = now
-        self._refresh_visuals() # 更新文字方向
+
+        if self.angle != 0:
+            self.image = pygame.transform.rotate(self.image_base, self.angle)
+        else:
+            self.image = self.image_base
+
         Spike([self.visible_groups, self.damage_group], self.rect.topleft, self.direction)
 
 class Spike(pygame.sprite.Sprite):
@@ -254,7 +259,7 @@ class Player(pygame.sprite.Sprite):
         self.image = self.image_base.copy()
 
 class Ghost(pygame.sprite.Sprite):
-    def __init__(self, groups, pos, obstacle_sprites, player):
+    def __init__(self, groups, pos, obstacle_sprites, player, wall_grid):
         super().__init__(groups)
         
         self.image = AssetFactory.create_tile("鬼", COLOR_GHOST, border_style='none')
@@ -262,6 +267,7 @@ class Ghost(pygame.sprite.Sprite):
         self.pos = pygame.math.Vector2(pos)
         
         self.obstacle_sprites = obstacle_sprites
+        self.wall_grid = wall_grid
         self.player = player
         self.direction = pygame.math.Vector2()
         self.speed = GHOST_SPEED
@@ -282,8 +288,15 @@ class Ghost(pygame.sprite.Sprite):
         dirs = [pygame.math.Vector2(0,-1), pygame.math.Vector2(0,1), 
                 pygame.math.Vector2(-1,0), pygame.math.Vector2(1,0)]
         valid = []
+
+        cx = int(self.rect.centerx // TILE_SIZE)
+        cy = int(self.rect.centery // TILE_SIZE)
+
         for d in dirs:
-            if not any(w.rect.colliderect(self.rect.move(d.x*TILE_SIZE, d.y*TILE_SIZE)) for w in self.obstacle_sprites):
+            target_x = cx + int(d.x)
+            target_y = cy + int(d.y)
+
+            if (target_x, target_y) not in self.wall_grid:
                 valid.append(d)
         
         if not valid: self.direction = pygame.math.Vector2(); return
@@ -292,5 +305,5 @@ class Ghost(pygame.sprite.Sprite):
         
         target = pygame.math.Vector2(self.player.rect.center)
         curr = pygame.math.Vector2(self.rect.center)
-        valid.sort(key=lambda d: (target - (curr + d*TILE_SIZE)).length())
+        valid.sort(key=lambda d: (target - (curr + d*TILE_SIZE)).length_squared())
         self.direction = valid[0]
