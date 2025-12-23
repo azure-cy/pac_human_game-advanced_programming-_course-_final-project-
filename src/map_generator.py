@@ -2,330 +2,268 @@
 import random
 from collections import deque
 
-# ==========================================
-#              地图生成配置
-# ==========================================
+# ==============================================================================
+#                                  配置参数
+# ==============================================================================
 MAP_CONFIG = {
-    "width": 31,            # 宽度 (奇数)
-    "height": 31,           # 高度 (奇数)
+    # 物品生成数量 (在你的地图骨架上填充多少东西)
+    "coin_groups": 10,           
+    "coin_group_size": (3, 6),  
     
-    # 迷宫结构
-    "braid_chance": 0.05,   # 死胡同消除率
-    "widen_chance": 0.4,    # [新增] 拓宽道路概率 (实现1-2格混合宽度)
+    "trap_groups": 8,           
+    "trap_group_size": (2, 4),  
     
-    # 难度控制
-    "min_slide_steps": 10,   # P到D至少滑行几步
+    "cocoon_groups": 5,         
+    "cocoon_group_size": (1, 1),
     
-    # --- 物体生成配置 ---
-    "coin_groups": 10,      # 金币组数
-    "coin_len": (3, 5),     # 金币每组长度
+    "wall_spike_groups": 10,     
+    "wall_spike_len": (2, 5),
     
-    "floor_spike_groups": 12, # [调整] 地面刺组数 (出现在通道两侧)
-    "floor_spike_len": (1, 3),
-    
-    "wall_spike_count": 10,   # [新增] 墙面刺的数量 (嵌入墙体)
-    
-    "cocoon_groups": 4,     # 茧的组数
-    "cocoon_len": (2, 3)    # 茧每组长度
+    # 变异参数
+    "enable_flip": True,       # 是否允许地图镜像翻转 (增加重玩性)
 }
+
+# 你的“完美地图”母版 (只保留墙壁结构，物品会被重置)
+# 我把你的地图里的物品都替换成了 '.'，只保留了 W，作为纯净骨架
+BASE_TEMPLATE = [
+    "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+    "W..............W.....W.........W",
+    "W.....W...W....W.....W......WW.W",
+    "W.WW..W...W....W.WC..W......WW.W",
+    "W..W..W.WWWWWWW.WC.WWW.W.......W",
+    "W..W..W...W.....WC.W...W..W....W",
+    "W..W..W...W.....W.WW...W..W....W",
+    "W..W.WW...W..WWWW..W...WW.W.WWWW",
+    "WW.W..W...W...CW...W...WW....CW.",
+    "W..W..W.WWW...CW...WW....W.....W",
+    "W..W..W..WW...WWW.WW.....W.....W",
+    "W..W..W..W....W...WW.....W.....W",
+    "W..W..W..W....W...WW.....W.....W",
+    "W..W..WWW.W...W...WW.....W.....W",
+    "W..W..W..CW...W...W.WWW..W.....W",
+    "W..WW.W..CW...W.......W..WWWW..W",
+    "W.WW..W..CW...W.......W..W.....W",
+    "W.WWW.W..CW...W.......W..W.....W",
+    "W..W..W..CW...WWWWWWW.W..W.....W",
+    "W..W..W..WW...W.......W..W.....W",
+    "W..W..W..W....W.......WW.W.....W",
+    "W..W..W..W.........W....WW.W..WW",
+    "W..W..W..WW........W....W..W...W",
+    "W..W..W..W.......WWWWWW..W.....W",
+    "W..W..W..WWWWWWWWW...W...W.....W",
+    "W..W.WW..............W..WW.....W",
+    "W..W.W....W.W........W..W......W",
+    "W..W.WWWWWWWWWWWWWWW.W..WW.WWW.W",
+    "W..W.................W.........W",
+    "W..W.........W.......W....WW...W",
+    "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"
+]
 
 class MapGenerator:
     def __init__(self, width=None, height=None):
-        w = width if width else MAP_CONFIG["width"]
-        h = height if height else MAP_CONFIG["height"]
-        self.width = w + (0 if w % 2 else 1)
-        self.height = h + (0 if h % 2 else 1)
+        # 这里的宽高主要用于兼容接口，实际上由 Template 决定
+        self.raw_grid = [list(row) for row in BASE_TEMPLATE]
+        self.h = len(self.raw_grid)
+        self.w = len(self.raw_grid[0])
         self.dirs = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
     def generate(self):
-        attempt = 0
-        while True:
-            attempt += 1
-            # 1. 初始化全墙
-            self.grid = [['W' for _ in range(self.width)] for _ in range(self.height)]
-            
-            # 2. 生成基础迷宫 (1格宽)
-            self._recursive_maze(1, 1)
-            
-            # 3. [新增] 拓宽道路 (实现1格和2格宽度混合)
-            self._widen_paths(MAP_CONFIG["widen_chance"])
-            
-            # 4. 消除死胡同
-            self._braid_maze(MAP_CONFIG["braid_chance"])
+        """
+        基于模板的生成流程：
+        1. 读取模板 -> 2. 随机翻转 -> 3. 放置玩家/门 -> 4. 填充物品
+        """
+        # 1. 深度拷贝模板，并清理掉原来的物品(如果有残留)
+        self.grid = []
+        for row in self.raw_grid:
+            new_row = []
+            for char in row:
+                # 只保留墙，其他全部还原为空地
+                if char == 'W': new_row.append('W')
+                else: new_row.append('.')
+            self.grid.append(new_row)
 
-            # 5. 放置玩家
-            self.player_pos = self._find_empty_spot(area='top_left')
-            self.grid[self.player_pos[1]][self.player_pos[0]] = 'P'
+        # 2. 地图变异 (镜像翻转)
+        if MAP_CONFIG["enable_flip"]:
+            self._apply_random_flip()
 
-            # 6. 计算可达性
-            reachable_map = self._analyze_reachability(self.player_pos)
+        # 3. 放置玩家 P
+        # 既然用了模板，我们就在左上角区域找个空位
+        self.player_pos = self._find_empty_area(1, 1, 10, 10)
+        self.grid[self.player_pos[1]][self.player_pos[0]] = 'P'
 
-            # 7. 放置门
-            if not self._place_door_strict(reachable_map):
-                continue 
+        # 4. 放置门 D (寻找最远点)
+        reachability = self._get_sliding_distances(self.player_pos)
+        self._place_door(reachability)
 
-            # 8. [核心逻辑升级] 获取详细路径信息
-            # sol_lines: 滑行轨迹 (地面刺禁区)
-            # sol_stops: 停留点 (地面刺禁区)
-            # sol_impacts: [新增] 玩家为了刹车必须撞击的墙 (墙面刺禁区)
-            self.sol_lines, self.sol_stops, self.sol_impacts = self._get_solution_details()
-            
-            # 地面安全区 = 轨迹 + 停留点 + 玩家 + 门
-            self.safe_floor_set = self.sol_lines.union(self.sol_stops).union({self.player_pos, self.door_pos})
+        # 5. 计算解法路径 (保护主路不被地刺封死)
+        solution_path = self._solve_sliding_path()
+        safe_zone = self._get_area_around(self.player_pos, 3) | \
+                    self._get_area_around(self.door_pos, 3)
 
-            # 9. 放置金币 (引导路径)
-            self._place_generic_groups(
-                char='C', 
-                count=MAP_CONFIG["coin_groups"], 
-                len_range=MAP_CONFIG["coin_len"],
-                forbidden_cells=set(), 
-                require_near_path=False
-            )
-
-            # 10. 放置地面刺 (出现在通道两侧)
-            # 逻辑：只能放在非主路的空地上
-            self._place_generic_groups(
-                char='^', 
-                count=MAP_CONFIG["floor_spike_groups"], 
-                len_range=MAP_CONFIG["floor_spike_len"],
-                forbidden_cells=self.safe_floor_set, # 绝对避开主路
-                require_near_path=False
-            )
-
-            # 11. [新增] 放置墙面刺 (嵌入墙体)
-            # 逻辑：替换墙壁，但绝对不能替换 sol_impacts (刹车墙)
-            self._place_wall_spikes()
-
-            # 12. 放置茧 (伏击)
-            # 茧在路边，forbidden依然是路径本身
-            forbidden_for_cocoons = self.safe_floor_set
-            self._place_generic_groups(
-                char='O',
-                count=MAP_CONFIG["cocoon_groups"],
-                len_range=MAP_CONFIG["cocoon_len"],
-                forbidden_cells=forbidden_for_cocoons,
-                require_near_path=True # 必须贴着路
-            )
-
-            print(f"Map generated in {attempt} attempts.")
-            return ["".join(row) for row in self.grid]
-
-    # --- 新增/修改的逻辑 ---
-
-    def _widen_paths(self, chance):
-        """随机拓宽道路，制造1格与2格宽并存的结构"""
-        # 遍历内部的墙
-        for y in range(1, self.height - 1):
-            for x in range(1, self.width - 1):
-                if self.grid[y][x] == 'W':
-                    # 如果这面墙上下左右有路，它就是潜在的拓宽点
-                    # 统计周围的路的数量
-                    road_neighbors = sum(1 for dx, dy in self.dirs if self.grid[y+dy][x+dx] == '.')
-                    
-                    # 只要有路在旁边，且随机命中，就打通变成路
-                    if road_neighbors > 0 and random.random() < chance:
-                        self.grid[y][x] = '.'
-
-    def _place_wall_spikes(self):
-        """放置嵌入墙体的刺"""
-        candidates = []
-        # 遍历所有墙壁
-        for y in range(1, self.height - 1):
-            for x in range(1, self.width - 1):
-                if self.grid[y][x] == 'W':
-                    # 1. [核心保护] 绝对不能是玩家通关必须撞击的墙
-                    if (x, y) in self.sol_impacts:
-                        continue
-                    
-                    # 2. 必须暴露在空气中(旁边有路)，否则玩家碰不到
-                    has_floor_neighbor = False
-                    for dx, dy in self.dirs:
-                        if self.grid[y+dy][x+dx] != 'W':
-                            has_floor_neighbor = True
-                            break
-                    
-                    if has_floor_neighbor:
-                        candidates.append((x, y))
+        # 6. 填充物品 (使用成组生成算法)
+        print("Populating template map...")
         
-        random.shuffle(candidates)
-        count = 0
-        limit = MAP_CONFIG["wall_spike_count"]
+        # 茧
+        self._place_linear_groups('O', MAP_CONFIG["cocoon_groups"], 
+                                  MAP_CONFIG["cocoon_group_size"], safe_zone)
+        # 地刺
+        self._place_linear_groups('^', MAP_CONFIG["trap_groups"], 
+                                  MAP_CONFIG["trap_group_size"], safe_zone | solution_path, strict=True)
+        # 墙刺
+        self._place_wall_spikes()
+        # 金币
+        self._place_linear_groups('C', MAP_CONFIG["coin_groups"], 
+                                  MAP_CONFIG["coin_group_size"], set())
+
+        return ["".join(row) for row in self.grid]
+
+    # =========================================================================
+    #  变异逻辑
+    # =========================================================================
+    def _apply_random_flip(self):
+        """随机翻转地图，让同一张模板玩起来不一样"""
+        # 左右翻转
+        if random.random() < 0.5:
+            for row in self.grid:
+                row.reverse()
         
-        for x, y in candidates:
-            if count >= limit: break
-            self.grid[y][x] = '^' # 把墙变成刺
-            count += 1
+        # 上下翻转
+        if random.random() < 0.5:
+            self.grid.reverse()
 
-    def _slide_with_impact(self, start, d):
-        """
-        物理模拟升级版
-        返回: (停止坐标, 路径列表, 撞击的墙坐标)
-        """
-        cx, cy = start
-        path = []
-        impact_wall = None # 记录撞到了哪个墙
-
-        while True:
-            nx, ny = cx + d[0], cy + d[1]
-            
-            # 检查越界 或 撞墙
-            # 注意：在这里，刺(^)、墙(W)、甚至茧(O)如果不处理碰撞都会被视为阻挡
-            # 但在生成阶段，物体还未放置，只有 'W' 和 '.'
-            if not (0 <= nx < self.width and 0 <= ny < self.height) or self.grid[ny][nx] == 'W':
-                # 如果是因为撞墙停下的（而不是出界），记录墙的坐标
-                if 0 <= nx < self.width and 0 <= ny < self.height:
-                    impact_wall = (nx, ny)
-                break
-            
-            cx, cy = nx, ny
-            path.append((cx, cy))
-            
-        return (cx, cy), path, impact_wall
-
-    def _get_solution_details(self):
-        """
-        计算解谜路径，同时识别出关键的'刹车墙'
-        """
-        # queue item: (curr_pos, lines, stops, impacts)
-        queue = deque([(self.player_pos, set(), set(), set())]) 
-        visited_stops = {self.player_pos}
-        
-        while queue:
-            curr, lines, stops, impacts = queue.popleft()
-            if curr == self.door_pos:
-                return lines, stops, impacts
-
-            for d in self.dirs:
-                # 使用带撞击检测的滑行函数
-                stop_pos, segment, impact_wall = self._slide_with_impact(curr, d)
-                
-                if stop_pos not in visited_stops:
-                    visited_stops.add(stop_pos)
-                    
-                    new_lines = lines.union(set(segment))
-                    new_stops = stops.union({stop_pos})
-                    
-                    # 记录这个关键的刹车墙
-                    new_impacts = impacts.copy()
-                    if impact_wall:
-                        new_impacts.add(impact_wall)
-                        
-                    queue.append((stop_pos, new_lines, new_stops, new_impacts))
-        return set(), set(), set()
-
-    # --- 基础功能 (保持不变或微调适配) ---
-
-    def _place_generic_groups(self, char, count, len_range, forbidden_cells, require_near_path=False):
-        """通用成组放置器"""
+    # =========================================================================
+    #  物品填充逻辑 (复用之前的优秀逻辑)
+    # =========================================================================
+    def _place_linear_groups(self, char, count, size_range, forbidden, strict=False):
         placed = 0
         attempts = 0
-        min_len, max_len = len_range
-        
-        while placed < count and attempts < 3000:
+        while placed < count and attempts < 200:
             attempts += 1
-            rx, ry = random.randint(1, self.width-2), random.randint(1, self.height-2)
+            rx = random.randint(1, self.w - 2)
+            ry = random.randint(1, self.h - 2)
             if self.grid[ry][rx] != '.': continue
-            
-            dx, dy = random.choice(self.dirs)
-            length = random.randint(min_len, max_len)
-            
-            group_cells = []
-            valid = True
-            is_near_path = False 
 
+            length = random.randint(size_range[0], size_range[1])
+            dx, dy = random.choice(self.dirs)
+            
+            points = []
+            valid = True
             for i in range(length):
                 nx, ny = rx + dx*i, ry + dy*i
-                
-                # A. 基础合法性
-                if not (0 <= nx < self.width and 0 <= ny < self.height): valid = False; break
-                if self.grid[ny][nx] != '.': valid = False; break
-                if (nx, ny) == self.player_pos or (nx, ny) == self.door_pos: valid = False; break
-                
-                # B. 禁区检查
-                if (nx, ny) in forbidden_cells: valid = False; break
-                
-                # C. 邻近性
-                if require_near_path:
-                    for neighbor_d in self.dirs:
-                        tx, ty = nx + neighbor_d[0], ny + neighbor_d[1]
-                        if (tx, ty) in self.safe_floor_set:
-                            is_near_path = True
-                
-                group_cells.append((nx, ny))
+                if not (0 < nx < self.w-1 and 0 < ny < self.h-1): valid=False; break
+                if self.grid[ny][nx] != '.': valid=False; break
+                if (nx, ny) in forbidden and strict: valid=False; break
+                points.append((nx, ny))
             
-            if valid:
-                if require_near_path and not is_near_path: continue
-                
-                for cx, cy in group_cells:
-                    self.grid[cy][cx] = char
+            if valid and points:
+                for px, py in points: self.grid[py][px] = char
                 placed += 1
 
-    def _slide(self, start, d):
-        """简单的滑行模拟 (用于BFS距离计算)"""
-        cx, cy = start
-        while True:
-            nx, ny = cx + d[0], cy + d[1]
-            if not (0 <= nx < self.width and 0 <= ny < self.height) or self.grid[ny][nx] == 'W':
-                break
-            cx, cy = nx, ny
-        return (cx, cy), [] 
+    def _place_wall_spikes(self):
+        walls = [(x,y) for y in range(self.h) for x in range(self.w) if self.grid[y][x] == 'W']
+        random.shuffle(walls)
+        placed = 0
+        for wx, wy in walls:
+            if placed >= MAP_CONFIG["wall_spike_groups"]: break
+            # 找空地面
+            open_dir = None
+            for dx, dy in self.dirs:
+                if 0<=wx+dx<self.w and 0<=wy+dy<self.h and self.grid[wy+dy][wx+dx] == '.':
+                    open_dir = (dx, dy); break
+            if not open_dir: continue
+            
+            # 垂直生长
+            grow_dir = (0, 1) if open_dir[0] != 0 else (1, 0)
+            length = random.randint(MAP_CONFIG["wall_spike_len"][0], MAP_CONFIG["wall_spike_len"][1])
+            
+            curr_placed = False
+            for i in range(length):
+                tx, ty = wx + grow_dir[0]*i, wy + grow_dir[1]*i
+                if not(0<tx<self.w-1 and 0<ty<self.h-1) or self.grid[ty][tx] != 'W': break
+                # 检查面
+                cx, cy = tx+open_dir[0], ty+open_dir[1]
+                if 0<=cx<self.w and 0<=cy<self.h and self.grid[cy][cx] in ['.','P','C']:
+                    self.grid[ty][tx] = '^'
+                    curr_placed = True
+            if curr_placed: placed += 1
 
-    def _analyze_reachability(self, start):
-        queue = deque([(start, 0)])
+    # =========================================================================
+    #  工具函数
+    # =========================================================================
+    def _find_empty_area(self, x, y, w, h):
+        # 局部搜索
+        for r in range(y, min(y+h, self.h)):
+            for c in range(x, min(x+w, self.w)):
+                if self.grid[r][c] == '.': return (c, r)
+        # 全局搜索
+        for r in range(1, self.h-1):
+            for c in range(1, self.w-1):
+                if self.grid[r][c] == '.': return (c, r)
+        return (1, 1)
+
+    def _slide(self, start, direction):
+        cx, cy = start
+        dx, dy = direction
+        path = []
+        while True:
+            nx, ny = cx + dx, cy + dy
+            if not (0 <= nx < self.w and 0 <= ny < self.h) or self.grid[ny][nx] == 'W':
+                return (cx, cy), path
+            cx, cy = nx, ny
+            path.append((cx, cy))
+
+    def _get_sliding_distances(self, start):
+        q = deque([(start, 0)])
         visited = {start: 0}
-        while queue:
-            curr, steps = queue.popleft()
+        while q:
+            curr, steps = q.popleft()
             for d in self.dirs:
-                stop_pos, _ = self._slide(curr, d)
-                if stop_pos not in visited:
-                    visited[stop_pos] = steps + 1
-                    queue.append((stop_pos, steps + 1))
+                end, _ = self._slide(curr, d)
+                if end not in visited:
+                    visited[end] = steps + 1
+                    q.append((end, steps+1))
         return visited
 
-    def _place_door_strict(self, reachable_map):
-        candidates = []
-        min_steps = MAP_CONFIG["min_slide_steps"]
-        for pos, steps in reachable_map.items():
-            if steps >= min_steps:
-                dist = abs(pos[0]-self.player_pos[0]) + abs(pos[1]-self.player_pos[1])
-                score = steps * 100 + dist 
-                candidates.append((score, pos))
-        if not candidates: return False
-        candidates.sort(key=lambda x: x[0], reverse=True)
-        self.door_pos = candidates[0][1]
+    def _solve_sliding_path(self):
+        q = deque([(self.player_pos, [])])
+        visited = {self.player_pos}
+        while q:
+            curr, path = q.popleft()
+            if curr == self.door_pos:
+                full_path_tiles = set()
+                curr_node = self.player_pos
+                for next_node in path:
+                    if next_node[0] == curr_node[0]:
+                        step = 1 if next_node[1] > curr_node[1] else -1
+                        for y in range(curr_node[1], next_node[1]+step, step): full_path_tiles.add((curr_node[0], y))
+                    else:
+                        step = 1 if next_node[0] > curr_node[0] else -1
+                        for x in range(curr_node[0], next_node[0]+step, step): full_path_tiles.add((x, curr_node[1]))
+                    curr_node = next_node
+                return full_path_tiles
+            for d in self.dirs:
+                end, _ = self._slide(curr, d)
+                if end not in visited:
+                    visited.add(end)
+                    q.append((end, path + [end]))
+        return set()
+
+    def _place_door(self, reachability):
+        if not reachability: self.door_pos = (self.w-2, self.h-2); self.grid[self.h-2][self.w-2]='D'; return
+        sorted_dest = sorted(reachability.items(), key=lambda x: x[1], reverse=True)
+        # 从最远的前20%个点里选
+        limit = max(1, len(sorted_dest)//5)
+        self.door_pos = random.choice(sorted_dest[:limit])[0]
         self.grid[self.door_pos[1]][self.door_pos[0]] = 'D'
-        return True
 
-    def _recursive_maze(self, x, y):
-        self.grid[y][x] = '.'
-        d_list = self.dirs[:]
-        random.shuffle(d_list)
-        for dx, dy in d_list:
-            nx, ny = x + dx*2, y + dy*2
-            if 1 <= nx < self.width-1 and 1 <= ny < self.height-1 and self.grid[ny][nx] == 'W':
-                self.grid[y+dy][x+dx] = '.'
-                self._recursive_maze(nx, ny)
-
-    def _braid_maze(self, fraction):
-        dead_ends = [(x,y) for y in range(1,self.height-1) for x in range(1,self.width-1) 
-                     if self.grid[y][x]=='.' and sum(1 for dx,dy in self.dirs if self.grid[y+dy][x+dx]=='W')==3]
-        random.shuffle(dead_ends)
-        for x, y in dead_ends[:int(len(dead_ends)*fraction)]:
-            valid = [(dx,dy) for dx,dy in self.dirs if 1<x+dx<self.width-1 and 1<y+dy<self.height-1 and self.grid[y+dy][x+dx]=='W']
-            if valid:
-                dx, dy = random.choice(valid)
-                self.grid[y+dy][x+dx] = '.'
-
-    def _find_empty_spot(self, area='all'):
-        while True:
-            limit_x = self.width // 3 if area == 'top_left' else self.width - 2
-            limit_y = self.height // 3 if area == 'top_left' else self.height - 2
-            rx = random.randint(1, limit_x)
-            ry = random.randint(1, limit_y)
-            if self.grid[ry][rx] == '.': return (rx, ry)
+    def _get_area_around(self, pos, r):
+        px, py = pos
+        area = set()
+        for y in range(py-r, py+r+1):
+            for x in range(px-r, px+r+1): area.add((x, y))
+        return area
 
 if __name__ == "__main__":
-    generator = MapGenerator(width=25, height=25)
-
-    for line in generator.generate():
-        print(line)
+    gen = MapGenerator()
+    for row in gen.generate():
+        print(f'    "{row}",')

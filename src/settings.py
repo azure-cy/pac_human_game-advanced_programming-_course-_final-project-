@@ -19,12 +19,9 @@ UI_BOX_BG_COLOR = (220, 220, 220)     # 浅灰色底
 UI_BOX_BORDER_COLOR = (255, 255, 255) # 白色边框
 UI_BORDER_WIDTH = 3                   # 边框粗细
 
-# 移动速度
-PLAYER_SPEED = 10  # 确保能整除 TILE_SIZE 以保证移动平滑
-GHOST_SPEED = 1    # 鬼的移动速度
-
 # 茧和鬼的设置
 COLOR_GHOST = (255, 0, 0)    # 字的颜色：红色
+GHOST_SPEED = 1              # 鬼的移动速度
 COCOON_SPAWN_DELAY = 1000    # 茧孵化所需时间 (毫秒)
 
 # 墙和门的颜色设置
@@ -33,6 +30,7 @@ COLOR_DOOR = (255, 215, 0)   # 门：金色
 
 # 玩家设置
 COLOR_PLAYER_TEXT = (255, 255, 0) # 玩家文字：标准黄色
+PLAYER_SPEED = 10                 # 确保能整除 TILE_SIZE 以保证移动平滑
 
 # 陷阱和刺的设置
 TRAP_COOLDOWN = 3000         # 陷阱总冷却时间 (要比刺的整套动作长)
@@ -47,7 +45,7 @@ COLOR_CYAN = (0, 255, 255)   # 青色 (用于文字和边框)
 # 金币设置
 COLOR_COIN = (255, 215, 0)      # 金色
 COLOR_COIN_EDGE = (200, 150, 0) # 深金色 (用于描边)
-COIN_ANIMATION_SPEED = 0.15     # 动画播放速度
+COIN_ANIMATION_SPEED = 0.10     # 动画播放速度
 
 # 拖尾设置
 TRAIL_LIFE_MAIN = int((2 * TILE_SIZE) / PLAYER_SPEED)     # 中间拖尾的生命周期
