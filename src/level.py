@@ -41,6 +41,7 @@ class Level:
                         groups=[self.visible_sprites],
                         pos=(c*TILE_SIZE, r*TILE_SIZE),
                         obstacle_sprites=self.obstacle_sprites,
+                        wall_grid=self.obstacle_grid,
                         create_particle_func=self.trigger_particle
                     )
 
