@@ -184,7 +184,7 @@ class Spike(pygame.sprite.Sprite):
         self.rect.topleft = (round(pos.x), round(pos.y))
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, groups, pos, obstacle_sprites, wall_grid, create_particle_func):
+    def __init__(self, groups, pos, obstacle_sprites, create_particle_func):
         super().__init__(groups)
         
         # 使用工厂生成：黄色 "我"，无边框 (border_style='none')
@@ -196,7 +196,6 @@ class Player(pygame.sprite.Sprite):
         self.pos = pygame.math.Vector2(self.rect.topleft)
         
         self.obstacle_sprites = obstacle_sprites
-        self.wall_grid = wall_grid
         self.create_particle = create_particle_func
         self.line_assets = AssetFactory.get_trail_assets()
         self.direction = pygame.math.Vector2()
@@ -219,30 +218,12 @@ class Player(pygame.sprite.Sprite):
         elif keys[pygame.K_RIGHT] or keys[pygame.K_d]: d.x = 1
 
         if d.length() != 0:
-            next_rect = self.rect.move(d.x * self.speed, d.y * self.speed)
-            check_rect = next_rect.inflate(-2, -2) 
-            can_move = True
-            corners = [
-                check_rect.topleft, check_rect.topright,
-                check_rect.bottomleft, check_rect.bottomright
-            ]
-            
-            for point in corners:
-                gx, gy = int(point[0] // TILE_SIZE), int(point[1] // TILE_SIZE)
-                if (gx, gy) in self.wall_grid:
-                    can_move = False
-                    break
-            
-            if can_move:
+            check_rect = self.rect.move(d.x, d.y)
+            if not any(s.rect.colliderect(check_rect) for s in self.obstacle_sprites):
                 self.direction = d
-                if self.status != 'moving': 
-                    self.status = 'moving'
-                    self.move_start_time = pygame.time.get_ticks()
-                
-                current_key = (int(d.x), int(d.y))
-                if getattr(self, 'last_draw_direction', None) != current_key:
-                    self._update_image_layer()
-                    self.last_draw_direction = current_key
+                self.status = 'moving'
+                self.move_start_time = pygame.time.get_ticks()
+                self._update_image_layer()
 
     def _update_image_layer(self):
         self.image = self.image_base.copy()

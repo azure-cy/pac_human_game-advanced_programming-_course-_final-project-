@@ -37,7 +37,6 @@ class BubbleSprite(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center=(center_pos[0] + offset_x, center_pos[1] + offset_y))
 
         # 爆炸运动逻辑 (360度随机)
-        # 随机角度 0-360
         angle = random.uniform(0, 360)
         speed = random.uniform(3, 5)     # 初始速度
         # 使用向量旋转计算速度分量
