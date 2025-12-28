@@ -1,12 +1,12 @@
 # src/maps.py
 from map_generator import MapGenerator
-# 0号测试关卡
+# 0,1,2号教程关卡
 # W = 墙, P = 玩家, . = 空地 (暂时只用这两个测试)
 
 LEVELS = {
     0: [
     "WWWWWWWWWWWWWWW",
-    "W.......WW...W",
+    "W......DWW...W",
     "W.WWWW..WCCCWW",
     "W.WWW..WW....W",
     "W.WW..WW.....W",
@@ -28,27 +28,27 @@ LEVELS = {
     "WW...W^.W....W",
     "WW...W..W....W",
     "WW...W..W....W",
-    "W....W.WW....W",
+    "W....W.^W....W",
     "WW...W..W....W",
     "WW...W..W....W",
-    "WW...WW.W....W",
+    "WW...W^.W....W",
     "WW...W..W....W",
     "WW...W..W....W",
-    "W....W.WW....W",
+    "W....W.^W....W",
     "WW...W..W....W",
     "WW...W..W....W",
-    "WW...WW.W....W",
+    "WW...W^.W....W",
     "WW...W..W....W",
     "W^...W..W....W",
-    "W....W.WW....W",
+    "W....W.^W....W",
     "W....W..W....W",
     "W....W..W....W",
-    "W....Wv.W....W",
+    "W....W^.W....W",
     "W....W..W....W",
-    "W...OW..WO...W",
-    "W...CW.WWO...W",
+    "W...CW..WC...W",
+    "W...CW.^WC...W",
     "WP..CW......DW",
-    "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWW",
     ],
 
     2: [
@@ -90,5 +90,13 @@ LEVELS = {
 
 generator = MapGenerator(width=25, height=25)
 
-for i in range(3, 8):
+for i in range(3, 20):
     LEVELS[i] = generator.generate()
+
+if __name__ == "__main__":    
+    for level_id in sorted(LEVELS.keys()):
+        print(f"\n=== LEVEL {level_id} ({'手动设计' if level_id < 3 else '自动生成'}) ===")
+        grid = LEVELS[level_id]
+        
+        for row in grid:
+            print(row)

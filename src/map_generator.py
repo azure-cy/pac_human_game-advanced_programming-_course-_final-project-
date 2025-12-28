@@ -13,10 +13,10 @@ MAP_CONFIG = {
     "trap_groups": 8,           
     "trap_group_size": (2, 4),  
     
-    "cocoon_groups": 5,         
-    "cocoon_group_size": (1, 1),
+    "cocoon_groups": 3,         
+    "cocoon_group_size": (3, 4),
     
-    "wall_spike_groups": 10,     
+    "wall_spike_groups": 4,     
     "wall_spike_len": (2, 5),
     
     # 变异参数
@@ -138,7 +138,7 @@ class MapGenerator:
             self.grid.reverse()
 
     # =========================================================================
-    #  门与位置计算 (核心修改)
+    #  门与位置计算
     # =========================================================================
     def _find_random_empty_spot(self):
         """在全图中随机找一个空点"""
